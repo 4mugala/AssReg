@@ -1,7 +1,5 @@
 import sys
 import socket
-import platform
-import subprocess
 import csv
 import os
 from datetime import datetime
@@ -12,16 +10,16 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QComboBox, QFileDialog,
     QMessageBox, QFormLayout, QGroupBox
 )
-from PySide6.QtCore import Qt
-from sysinfo import get_computer_info#, request_elevated_privileges
+
+from sysinfo import get_computer_info
 
 try:
     import openpyxl
+
     HAS_OPENPYXL = True
 except ImportError:
     HAS_OPENPYXL = False
     print("openpyxl not installed. Excel support disabled. Install with: pip install openpyxl")
-
 
 
 class HardwareInfoApp(QMainWindow):
@@ -93,10 +91,8 @@ class HardwareInfoApp(QMainWindow):
         self.layout.addLayout(btn_layout)
 
         self.current_file = None
-        # self.fetch_hardware_info()  # Auto fetch on start
 
     def fetch_hardware_info(self):
-        # request_elevated_privileges()
         if not self.is_data_fetched:
             self.is_data_fetched = True
         computer_info = get_computer_info()
@@ -127,15 +123,15 @@ class HardwareInfoApp(QMainWindow):
             self.file_label.setText(file_path)
 
     def save_to_file(self):
+        if not self.is_data_fetched:
+            self.fetch_hardware_info()
+
         if not self.current_file:
-            # QMessageBox.warning(self, "No File", "Please select a file first.")
             save_filename = QFileDialog.getSaveFileName(self, "Save File",
-            "./untitled.csv",
-            "Documents (*.png *.xpm *.jpg)")
+                                                        "./untitled.csv",
+                                                        "Documents (*.png *.xpm *.jpg)")
             self.current_file = save_filename[0]
             self.file_label.setText(self.current_file)
-            print("Saving to: ", self.current_file)
-            # return
 
         # Gather data
         data = {
