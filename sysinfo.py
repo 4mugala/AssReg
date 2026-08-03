@@ -1,20 +1,11 @@
-import os
 import platform
 import re
 import subprocess
-import sys
 
 SYSTEM = platform.system().lower()
 
 if SYSTEM == "windows":
     import wmi
-
-try:
-    with open("dmidecode_output.txt", "rb") as dmidecode_file:
-        dmidecode_output = dmidecode_file.read()
-        dmidecode_output = dmidecode_output.decode("utf-8")
-except FileNotFoundError:
-    print("dmidecode output file not found")
 
 LINUX_REQUEST_GUI_AUTH = True
 
@@ -29,8 +20,7 @@ def get_computer_info_linux():
     if LINUX_REQUEST_GUI_AUTH:
         dmidecode_output = subprocess.check_output([
             "pkexec",
-            "dmidecode","system-serial-number"], text=True) #.encode()
-        print(type(dmidecode_output))
+            "dmidecode", "system-serial-number"], text=True)  # .encode()
     else:
         dmidecode_output = subprocess.check_output(["sudo", "dmidecode"], text=True).encode()
 
@@ -80,7 +70,6 @@ def get_computer_info_windows():
         sysinfo["monitors"] = monitors
     except Exception as e:
         sysinfo["monitors"] = [{"name": "Unknown"}]
-        pass
 
     try:
         # Computer Serial Number
@@ -105,6 +94,5 @@ def get_computer_info():
         return get_computer_info_linux()
     elif SYSTEM == "windows":
         return get_computer_info_windows()
-
 
 # print(get_computer_info())
