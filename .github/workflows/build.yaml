@@ -1,0 +1,44 @@
+name: Build Executables
+
+# Runs on every push to any branch. Adjust the branches list if you only
+# want this on specific branches (e.g. main).
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        shell: bash
+
+      # Update "main.py" below to match your actual entry-point script.
+      - name: Build with PyInstaller
+        run: pyinstaller --onefile --name myapp main.py
+        shell: bash
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myapp-${{ matrix.os }}
+          path: dist/*
