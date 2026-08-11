@@ -1,7 +1,5 @@
 name: Build Executables
 
-# Runs on every push to any branch. Adjust the branches list if you only
-# want this on specific branches (e.g. main).
 on:
   push:
     branches:
