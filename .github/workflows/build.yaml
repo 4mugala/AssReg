@@ -32,7 +32,7 @@ jobs:
 
       # Update "main.py" below to match your actual entry-point script.
       - name: Build with PyInstaller
-        run: pyinstaller --onefile --name myapp main.py
+        run: pyinstaller --onefile --name assreg main.py
         shell: bash
 
       - name: Upload build artifact
