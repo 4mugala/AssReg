@@ -40,7 +40,7 @@ class Server(socketserver.ThreadingTCPServer):
 class HardwareInfoApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.is_devices_capturing = False
+        # self.is_devices_capturing = False
         self.current_file = None
         self.is_running_as_server = False
         self.server = None
@@ -224,7 +224,17 @@ class HardwareInfoApp(QMainWindow):
 
     def send_info_to_server(self):
         recv_server_ip = self.server_address_edit.text()
-        recv_server_port_number = int(self.port_number_edit.text())
+        recv_server_port_number = self.port_number_edit.text()
+
+        if not recv_server_ip and not recv_server_port_number:
+            QMessageBox.warning(
+                self,
+                "No Server Address Provided",
+                "Please fill in server address first, then send to server."
+            )
+            return
+
+        recv_server_port_number = int(recv_server_port_number)
 
         if not model.rowCount():
             QMessageBox.warning(
@@ -242,15 +252,26 @@ class HardwareInfoApp(QMainWindow):
             )
             return
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-            client.connect((recv_server_ip, recv_server_port_number))
-            devices_info_df = self.create_devices_info_dataframe()
-            devices_info = json.dumps(devices_info_df.to_dict(orient="records"))
-            client.sendall(devices_info.encode("utf-8"))
+        self.statusBar().showMessage("Sending Devices info to server...")
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+                print("Connecting to server...", recv_server_ip, recv_server_port_number)
+
+                client.connect((recv_server_ip, recv_server_port_number))
+                devices_info_df = self.create_devices_info_dataframe()
+                devices_info = json.dumps(devices_info_df.to_dict(orient="records"))
+                client.sendall(devices_info.encode("utf-8"))
+                print("data sent to server")
+            self.statusBar().showMessage(f"Sent {len(devices_info_df)} Devices to Server")
+        except:
+            self.statusBar().showMessage("No connection could be made because the target machine actively refused it, or timed out!")
 
     def capture_devices_info(self):
-        if not self.is_devices_capturing:
-            self.is_devices_capturing = True
+        # if not self.is_devices_capturing:
+        #     self.is_devices_capturing = True
+        # self.capture_devices_button.setEnabled(False)
+        # else:
+        #     return
 
         self.devices_info = get_devices_info()
         if not self.is_running_as_server:
@@ -259,7 +280,9 @@ class HardwareInfoApp(QMainWindow):
         for item in self.devices_info:
             self.delegate.local_serial_numbers.append(item["Serial Number"])
         model.add_data(self.devices_info)
-        self.is_devices_capturing = False
+
+        # self.capture_devices_button.setEnabled(False)
+        # self.is_devices_capturing = False
 
     def save_to_file(self):
         if not model.rowCount():
@@ -288,7 +311,8 @@ class HardwareInfoApp(QMainWindow):
             self.file_label.setText(self.current_file)
 
         # Create DataFrame
-        devices_info_df = self.create_devices_info_dataframe()
+        model.add_data(self.create_devices_info_dataframe())
+        devices_info_df = model.df
 
         ext = Path(self.current_file).suffix.lower()
 

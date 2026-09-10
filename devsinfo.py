@@ -10,10 +10,6 @@ if SYSTEM == "windows":
 LINUX_REQUEST_GUI_AUTH = True
 
 
-class DevicesInfo(list):
-    curr_device = None
-
-
 def get_devices_info_linux(hostonly):
     devices_info = list()
     MATCH_RE = [
@@ -29,16 +25,17 @@ def get_devices_info_linux(hostonly):
         dmidecode_output = subprocess.check_output(["sudo", "dmidecode"], text=True).encode()
 
     # Computer Serial Number
-    sysinfo = dict()
+    computer_info = dict()
     for name, regex in MATCH_RE:
         match = re.search(regex, dmidecode_output)
         name = name.upper() if name == "uuid" else name.replace("_", " ").title()
-        sysinfo[name] = match.group(1).strip()
-    devices_info.append(sysinfo)
+        computer_info[name] = match.group(1).strip()
+    computer_info["Category"] = "Computer"
+    devices_info.append(computer_info)
 
     # if hostonly:
     #     return devices_info
-    # devices_info.curr_device = sysinfo
+    # devices_info.curr_device = computer_info
 
     # Monitor in info
     result = subprocess.check_output(["xrandr", "--query"], text=True)
