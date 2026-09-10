@@ -25,8 +25,8 @@ SERVER_PORT = 5000
 HOST = "0.0.0.0"
 PORT = 5000
 
-
 model = ListModel()
+
 
 class ClientHandler(socketserver.BaseRequestHandler):
 
@@ -36,12 +36,6 @@ class ClientHandler(socketserver.BaseRequestHandler):
         data = self.request.recv(1024)
         message = data.decode("utf-8")
         json_data = json.loads(message)
-        # print("=" * 50)
-        # print(f"Some cool JSON data ({type(json_data)}):")
-        # print("=" * 50)
-        # print(json_data)
-        # print("=" * 50)
-        # for item in json_data:
         model.add_data(json_data)
 
         print(f"Client disconnected: {self.client_address}")
@@ -52,11 +46,15 @@ class Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
-
 class HardwareInfoApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.is_data_fetched = False
+        self.is_devices_capturing = False
+        self.current_file = None
+        self.is_running_as_server = False
+        self.server = None
+        self.autodetect_curr_ip = True
+
         self.setWindowTitle("Assreg")
         self.setMinimumWidth(600)
 
@@ -72,9 +70,6 @@ class HardwareInfoApp(QMainWindow):
         self.devices_info = list()  # pd.read_csv("data/asset_registry_combined.csv")
         # self.devices_info = self.device_data.to_dict(orient="records")
 
-        # Model
-        # self.model = ListModel(self.devices_info)
-
         # List View
         self.list_view = QListView()
         # self.list_view.setModel(self.model)
@@ -88,14 +83,15 @@ class HardwareInfoApp(QMainWindow):
         self.list_view.setSpacing(4)
 
         # Title Label
-        title_label = QLabel("0 Devices Detected")
-        font = title_label.font()
-        font.setBold(True)
-        title_label.setFont(font)
+        self.detected_devices_label = QLabel("0 Devices Detected")
+        font = self.detected_devices_label.font()
+        # font.setBold(True)
+        self.detected_devices_label.setFont(font)
+        model.data_changed.connect(self.on_data_changed)
 
         # Hardware Layout
         hw_layout = QVBoxLayout()
-        hw_layout.addWidget(title_label)
+        hw_layout.addWidget(self.detected_devices_label)
         hw_layout.addWidget(self.list_view)
 
         hw_group.setLayout(hw_layout)
@@ -105,9 +101,9 @@ class HardwareInfoApp(QMainWindow):
         input_group = QGroupBox("Additional Information")
         input_layout = QFormLayout()
 
-        self.room_edit = QLineEdit()
-        self.room_edit.setPlaceholderText("Enter Room Name/Number")
-        input_layout.addRow("Room <font color='red'>*</font>", self.room_edit)
+        self.room_number_edit = QLineEdit()
+        self.room_number_edit.setPlaceholderText("Enter Room Name/Number")
+        input_layout.addRow("Room <font color='red'>*</font>", self.room_number_edit)
 
         self.allocation_edit = QLineEdit()
         self.allocation_edit.setPlaceholderText("Enter whom this device is allocated to")
@@ -120,14 +116,14 @@ class HardwareInfoApp(QMainWindow):
         server_layout = QHBoxLayout()
 
         server_address_layout = QFormLayout()
-        server_address = QLineEdit()
-        server_address.setPlaceholderText("URL or IP address")
-        server_address_layout.addRow("Server Address", server_address)
+        self.server_address_edit = QLineEdit()
+        self.server_address_edit.setPlaceholderText("URL or IP address")
+        server_address_layout.addRow("Server Address", self.server_address_edit)
 
         server_port_layout = QFormLayout()
-        port_number = QLineEdit()
-        port_number.setPlaceholderText("Port Number")
-        server_port_layout.addRow("Port", port_number)
+        self.port_number_edit = QLineEdit()
+        self.port_number_edit.setPlaceholderText("Port Number")
+        server_port_layout.addRow("Port", self.port_number_edit)
         server_layout.addLayout(server_address_layout)
 
         server_layout.addLayout(server_port_layout)
@@ -162,9 +158,9 @@ class HardwareInfoApp(QMainWindow):
         self.send_to_server_button.clicked.connect(self.send_info_to_server)
         main_button_layout.addWidget(self.send_to_server_button)
 
-        self.fetch_device_info_button = QPushButton("Fetch Device Info")
-        self.fetch_device_info_button.clicked.connect(self.fetch_hardware_info)
-        main_button_layout.addWidget(self.fetch_device_info_button)
+        self.capture_devices_button = QPushButton("Capture Devices")
+        self.capture_devices_button.clicked.connect(self.capture_devices_info)
+        main_button_layout.addWidget(self.capture_devices_button)
 
         self.save_to_file_button = QPushButton("Save to File")
         self.save_to_file_button.clicked.connect(self.save_to_file)
@@ -172,17 +168,52 @@ class HardwareInfoApp(QMainWindow):
 
         self.layout.addLayout(main_button_layout)
 
-        self.current_file = None
         self.statusBar().showMessage("Running as Server · 6 Device(s) Info Received")
-        self.is_running_as_server = False
-        self.server = None
 
-    def on_app_stop(self):
-        print("APPLICATION STOPPED!!!")
+    def on_data_changed(self, *args):
+        print("Data Changed", args)
+
+        self.detected_devices_label.setText(f"{len(args[0])} Detected Devices")
+
+    def create_devices_info_dataframe(self):
+        devices_info_df = pd.DataFrame(self.devices_info)
+        devices_info_df["Room"] = self.room_number_edit.text()
+        devices_info_df["Allocation"] = self.allocation_edit.text()
+        return devices_info_df
+
+    def select_file(self):
+        filters = "CSV Files (*.csv);;Excel Files (*.xlsx)"
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Output File", "", filters
+        )
+        if file_path:
+            self.current_file = file_path
+            self.file_label.setText(file_path)
 
     def run_as_server(self):
-        def on_server_received():
-            print("SERVER RECVED!!!")
+        server_ip = "127.0.0.1"
+        port_number = 500
+
+        def get_local_ip():
+            # Returns the local IP address
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                s.connect(("8.8.8.8", 80))
+                ip = s.getsockname()[0]
+            except Exception:
+                ip = "127.0.0.1"
+            finally:
+                s.close()
+            return ip
+
+        if self.autodetect_curr_ip:
+            server_ip = get_local_ip()
+            # server_ip = HOST
+            port_number = 500
+            # port_number = PORT
+            self.server_address_edit.setText(server_ip)
+            self.port_number_edit.setText("5000")
 
         if not self.is_running_as_server and not self.server:
             self.is_running_as_server = True
@@ -190,11 +221,11 @@ class HardwareInfoApp(QMainWindow):
             self.run_as_server_button.setText("Stop Server")
 
             # Run server in a separate thread to avoid blocking UI
-            self.server = Server((HOST, PORT), ClientHandler)
+            self.server = Server((server_ip, port_number), ClientHandler)
             self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
             self.server_thread.start()
 
-            self.statusBar().showMessage("Running as Server @ {}:{} ...".format(HOST, PORT))
+            self.statusBar().showMessage("Running as Server @ {}:{} ...".format(server_ip, port_number))
 
         else:
             self.is_running_as_server = False
@@ -211,37 +242,55 @@ class HardwareInfoApp(QMainWindow):
                 except Exception as e:
                     self.statusBar().showMessage("Error stopping server: {}".format(str(e)))
 
+    def send_info_to_server(self):
+        if not model.rowCount():
+            QMessageBox.warning(
+                self,
+                "Nothing to Send",
+                "Please 'Capture devices' first, then send to server."
+            )
+            return
 
-    def fetch_hardware_info(self):
-        if not self.is_data_fetched:
-            self.is_data_fetched = True
+        if not self.room_number_edit.text() and not self.allocation_edit.text():
+            QMessageBox.warning(
+                self,
+                "Missing Info",
+                "Please fill Room Number and Allocation."
+            )
+            return
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+            client.connect((SERVER_HOST, SERVER_PORT))
+            devices_info_df = self.create_devices_info_dataframe()
+            devices_info = json.dumps(devices_info_df.to_dict(orient="records"))
+            client.sendall(devices_info.encode("utf-8"))
+
+    def capture_devices_info(self):
+        if not self.is_devices_capturing:
+            self.is_devices_capturing = True
 
         self.devices_info = get_devices_info()
         for item in self.devices_info:
             self.delegate.local_serial_numbers.append(item["Serial Number"])
-        # print(self.devices_info)
-        # self.model.set_data(self.devices_info)
         model.add_data(self.devices_info)
-
-    def send_info_to_server(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-            client.connect((SERVER_HOST, SERVER_PORT))
-            devices_info = json.dumps(self.devices_info)
-            client.sendall(devices_info.encode("utf-8"))
-
-    def select_file(self):
-        filters = "CSV Files (*.csv);;Excel Files (*.xlsx)"
-
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Output File", "", filters
-        )
-        if file_path:
-            self.current_file = file_path
-            self.file_label.setText(file_path)
+        self.is_devices_capturing = False
 
     def save_to_file(self):
-        if not self.is_data_fetched:
-            self.fetch_hardware_info()
+        if not model.rowCount():
+            QMessageBox.warning(
+                self,
+                "Nothing to Save",
+                "Please 'Capture devices' first, then save to file."
+            )
+            return
+
+        if not self.room_number_edit.text() and not self.allocation_edit.text():
+            QMessageBox.warning(
+                self,
+                "Missing Info",
+                "Please fill Room Number and Allocation."
+            )
+            return
 
         if not self.current_file:
             save_filename = QFileDialog.getSaveFileName(
@@ -252,18 +301,8 @@ class HardwareInfoApp(QMainWindow):
             self.current_file = save_filename[0]
             self.file_label.setText(self.current_file)
 
-        # Gather data
-        room = self.room_edit.text()
-        allocation = self.allocation_edit.text()
-
         # Create DataFrame
-        devices_info_df = pd.DataFrame(self.devices_info)
-        devices_info_df["Room"] = room
-        devices_info_df["Allocation"] = allocation
-
-        if not room or not allocation:
-            QMessageBox.warning(self, "Missing Info", "Please fill Room Number and Location.")
-            return
+        devices_info_df = self.create_devices_info_dataframe()
 
         ext = Path(self.current_file).suffix.lower()
 
@@ -295,9 +334,12 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = HardwareInfoApp()
     window.show()
+
+
     def on_app_stop():
-        print(f"{window.is_running_as_server} APPLICATION STOPPED!!!!")
         if window.is_running_as_server:
             window.server.shutdown()
+
+
     app.aboutToQuit.connect(on_app_stop)
     sys.exit(app.exec())

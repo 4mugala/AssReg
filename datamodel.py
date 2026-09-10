@@ -13,8 +13,20 @@ from PySide6.QtCore import (
 )
 
 
+import pandas as pd
+
+from PySide6.QtCore import (
+    QModelIndex,
+    QAbstractListModel,
+    Qt,
+    Signal
+)
+
+
 class ListModel(QAbstractListModel):
-    # Columns that are NOT used to identify a duplicate
+
+    data_changed = Signal(pd.DataFrame)
+
     LOCATION_COLUMNS = {
         "Room",
         "Allocation"
@@ -27,10 +39,6 @@ class ListModel(QAbstractListModel):
 
         if data is not None:
             self.set_data(data)
-
-    # =========================================================
-    # Convert input to DataFrame
-    # =========================================================
 
     @staticmethod
     def _to_dataframe(data):
@@ -51,10 +59,6 @@ class ListModel(QAbstractListModel):
             "Data must be either a pandas DataFrame "
             "or a list of dictionaries."
         )
-
-    # =========================================================
-    # Qt Model
-    # =========================================================
 
     def rowCount(self, parent=QModelIndex()):
 
@@ -79,17 +83,10 @@ class ListModel(QAbstractListModel):
         return None
 
     # =========================================================
-    # SET / REPLACE ALL DATA
+    # REPLACE DATA
     # =========================================================
 
     def set_data(self, data):
-        """
-        Replace all existing model data.
-
-        data can be:
-            - pandas.DataFrame
-            - list of dictionaries
-        """
 
         new_df = self._to_dataframe(data)
 
@@ -99,29 +96,14 @@ class ListModel(QAbstractListModel):
 
         self.endResetModel()
 
+        # Notify listeners
+        self.data_changed.emit(self.df.copy())
+
     # =========================================================
     # ADD / UPDATE DATA
     # =========================================================
 
     def add_data(self, data):
-        """
-        Add devices to the model.
-
-        Duplicate handling:
-
-        - Device does not exist:
-              Add it.
-
-        - Device exists and Room/Allocation changed:
-              Replace the existing row.
-
-        - Device exists and nothing changed:
-              Do nothing.
-
-        data can be:
-            - pandas.DataFrame
-            - list of dictionaries
-        """
 
         new_df = self._to_dataframe(data)
 
@@ -129,13 +111,19 @@ class ListModel(QAbstractListModel):
             return
 
         # -----------------------------------------------------
-        # If model is empty
+        # Empty model
         # -----------------------------------------------------
 
         if self.df.empty:
-            new_df = new_df.drop_duplicates(
-                keep="last"
-            ).reset_index(drop=True)
+
+            new_df = (
+                new_df
+                .drop_duplicates(keep="last")
+                .reset_index(drop=True)
+            )
+
+            if new_df.empty:
+                return
 
             self.beginResetModel()
 
@@ -143,10 +131,12 @@ class ListModel(QAbstractListModel):
 
             self.endResetModel()
 
+            self.data_changed.emit(self.df.copy())
+
             return
 
         # -----------------------------------------------------
-        # Make sure both DataFrames have the same columns
+        # Ensure same columns
         # -----------------------------------------------------
 
         all_columns = list(
@@ -165,7 +155,7 @@ class ListModel(QAbstractListModel):
         )
 
         # -----------------------------------------------------
-        # Columns used to identify a device
+        # Device identity columns
         # -----------------------------------------------------
 
         device_columns = [
@@ -174,13 +164,14 @@ class ListModel(QAbstractListModel):
             if column not in self.LOCATION_COLUMNS
         ]
 
+        changed = False
+
         # -----------------------------------------------------
-        # Process each incoming device
+        # Process incoming rows
         # -----------------------------------------------------
 
         for _, new_row in new_df.iterrows():
 
-            # Find matching device(s)
             mask = pd.Series(
                 True,
                 index=self.df.index
@@ -191,22 +182,19 @@ class ListModel(QAbstractListModel):
                 old_value = self.df[column]
                 new_value = new_row[column]
 
-                # Handle NaN == NaN
                 if pd.isna(new_value):
-
                     mask &= old_value.isna()
-
                 else:
-
                     mask &= old_value.eq(new_value)
 
             matches = self.df.index[mask]
 
-            # =================================================
-            # DEVICE DOES NOT EXIST
-            # =================================================
+            # -------------------------------------------------
+            # New device
+            # -------------------------------------------------
 
             if len(matches) == 0:
+
                 row_position = len(self.df)
 
                 self.beginInsertRows(
@@ -215,21 +203,20 @@ class ListModel(QAbstractListModel):
                     row_position
                 )
 
-                self.df.loc[
-                    len(self.df)
-                ] = new_row
+                self.df.loc[len(self.df)] = new_row
 
                 self.endInsertRows()
 
+                changed = True
+
                 continue
 
-            # =================================================
-            # DEVICE ALREADY EXISTS
-            # =================================================
+            # -------------------------------------------------
+            # Existing device
+            # -------------------------------------------------
 
             existing_index = matches[0]
 
-            # Check whether the complete row is identical
             existing_row = self.df.loc[
                 existing_index
             ]
@@ -248,17 +235,16 @@ class ListModel(QAbstractListModel):
                     same = False
                     break
 
-            # =================================================
-            # EXACT DUPLICATE
-            # =================================================
+            # -------------------------------------------------
+            # Exact duplicate
+            # -------------------------------------------------
 
             if same:
-                # Nothing to do
                 continue
 
-            # =================================================
-            # DEVICE EXISTS BUT DATA CHANGED
-            # =================================================
+            # -------------------------------------------------
+            # Existing device has changed
+            # -------------------------------------------------
 
             row_position = self.df.index.get_loc(
                 existing_index
@@ -277,14 +263,24 @@ class ListModel(QAbstractListModel):
                 [Qt.DisplayRole]
             )
 
+            changed = True
+
+        # -----------------------------------------------------
+        # Notify external listeners only if data changed
+        # -----------------------------------------------------
+
+        if changed:
+            self.data_changed.emit(
+                self.df.copy()
+            )
+
     # =========================================================
-    # Get DataFrame
+    # GET DATA
     # =========================================================
 
     def get_dataframe(self):
 
         return self.df.copy()
-
 
 class ItemDelegate(QStyledItemDelegate):
     ITEM_HEIGHT = 80
