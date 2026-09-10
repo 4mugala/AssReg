@@ -1,0 +1,44 @@
+# triggers on push to tags like "v1.0.0-alpha" and manual dispatch
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # example build/pack step - replace with your build commands
+      - name: Build package
+        run: |
+          mkdir -p release
+          # produce a zip (replace with your build output)
+          zip -r release/AssReg-${{ github.ref_name }}.zip src || true
+
+      - name: Upload artifact for release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zip
+          path: release/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-zip
+          path: release
+
+      - name: Create or update GitHub Release and upload assets
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          files: release/*.zip
