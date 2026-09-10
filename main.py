@@ -224,7 +224,7 @@ class HardwareInfoApp(QMainWindow):
 
     def send_info_to_server(self):
         recv_server_ip = self.server_address_edit.text()
-        recv_server_port_number = self.port_number_edit.text()
+        recv_server_port_number = int(self.port_number_edit.text())
 
         if not model.rowCount():
             QMessageBox.warning(
