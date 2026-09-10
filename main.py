@@ -2,28 +2,19 @@ import json
 import socketserver
 import sys
 import socket
-import csv
 import os
-from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QAbstractListModel, QModelIndex, QSize, Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QComboBox, QFileDialog,
-    QMessageBox, QFormLayout, QGroupBox, QListView, QStyledItemDelegate, QStyle, QCheckBox, QSizePolicy
+    QMessageBox, QFormLayout, QGroupBox, QListView,  QCheckBox, QSizePolicy
 )
 
 from datamodel import ListModel, ItemDelegate
 from devsinfo import get_devices_info
 import pandas as pd
 import threading
-
-SERVER_HOST = "127.0.0.1"
-SERVER_PORT = 5000
-HOST = "0.0.0.0"
-PORT = 5000
 
 model = ListModel()
 
@@ -53,7 +44,7 @@ class HardwareInfoApp(QMainWindow):
         self.current_file = None
         self.is_running_as_server = False
         self.server = None
-        self.autodetect_curr_ip = True
+        self.devices_info = list()
 
         self.setWindowTitle("Assreg")
         self.setMinimumWidth(600)
@@ -66,9 +57,6 @@ class HardwareInfoApp(QMainWindow):
 
         # Hardware Info Group
         hw_group = QGroupBox("Device Information")
-
-        self.devices_info = list()  # pd.read_csv("data/asset_registry_combined.csv")
-        # self.devices_info = self.device_data.to_dict(orient="records")
 
         # List View
         self.list_view = QListView()
@@ -83,15 +71,14 @@ class HardwareInfoApp(QMainWindow):
         self.list_view.setSpacing(4)
 
         # Title Label
-        self.detected_devices_label = QLabel("0 Devices Detected")
-        font = self.detected_devices_label.font()
-        # font.setBold(True)
-        self.detected_devices_label.setFont(font)
+        self.captured_devices_label = QLabel(f"Total Captured: {len(self.devices_info)}")
+        font = self.captured_devices_label.font()
+        self.captured_devices_label.setFont(font)
         model.data_changed.connect(self.on_data_changed)
 
         # Hardware Layout
         hw_layout = QVBoxLayout()
-        hw_layout.addWidget(self.detected_devices_label)
+        hw_layout.addWidget(self.captured_devices_label)
         hw_layout.addWidget(self.list_view)
 
         hw_group.setLayout(hw_layout)
@@ -127,7 +114,6 @@ class HardwareInfoApp(QMainWindow):
         server_layout.addLayout(server_address_layout)
 
         server_layout.addLayout(server_port_layout)
-        server_layout.addWidget(QCheckBox("Autodect"))
         server_status.setLayout(server_layout)
         self.layout.addWidget(server_status)
 
@@ -168,12 +154,10 @@ class HardwareInfoApp(QMainWindow):
 
         self.layout.addLayout(main_button_layout)
 
-        self.statusBar().showMessage("Running as Server · 6 Device(s) Info Received")
+        self.statusBar().showMessage("No Devices captured.")
 
     def on_data_changed(self, *args):
-        print("Data Changed", args)
-
-        self.detected_devices_label.setText(f"{len(args[0])} Detected Devices")
+        self.captured_devices_label.setText(f"Total Captured: {len(args[0])}")
 
     def create_devices_info_dataframe(self):
         devices_info_df = pd.DataFrame(self.devices_info)
@@ -192,9 +176,6 @@ class HardwareInfoApp(QMainWindow):
             self.file_label.setText(file_path)
 
     def run_as_server(self):
-        server_ip = "127.0.0.1"
-        port_number = 500
-
         def get_local_ip():
             # Returns the local IP address
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -207,13 +188,8 @@ class HardwareInfoApp(QMainWindow):
                 s.close()
             return ip
 
-        if self.autodetect_curr_ip:
-            server_ip = get_local_ip()
-            # server_ip = HOST
-            port_number = 500
-            # port_number = PORT
-            self.server_address_edit.setText(server_ip)
-            self.port_number_edit.setText("5000")
+        server_ip = get_local_ip()
+        server_port_number = 0
 
         if not self.is_running_as_server and not self.server:
             self.is_running_as_server = True
@@ -221,11 +197,15 @@ class HardwareInfoApp(QMainWindow):
             self.run_as_server_button.setText("Stop Server")
 
             # Run server in a separate thread to avoid blocking UI
-            self.server = Server((server_ip, port_number), ClientHandler)
+            self.server = Server((server_ip, server_port_number), ClientHandler)
+            _, server_port_number = self.server.server_address
+            self.server_address_edit.setText(server_ip)
+            self.port_number_edit.setText(str(server_port_number))
+            print("Server Running on:", self.server.server_address)
             self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
             self.server_thread.start()
 
-            self.statusBar().showMessage("Running as Server @ {}:{} ...".format(server_ip, port_number))
+            self.statusBar().showMessage("Running as Server @ {}:{} ...".format(server_ip, server_port_number))
 
         else:
             self.is_running_as_server = False
@@ -238,11 +218,17 @@ class HardwareInfoApp(QMainWindow):
                     self.server.shutdown()
                     self.server.server_close()  # Close the listening socket
                     self.server = None
-                    self.statusBar().showMessage("Server stopped!!!")
+                    self.statusBar().showMessage("Server stopped!")
                 except Exception as e:
                     self.statusBar().showMessage("Error stopping server: {}".format(str(e)))
 
     def send_info_to_server(self):
+        recv_server_ip = "127.0.0.1"
+        recv_server_port_number = 500
+
+        recv_server_ip = self.server_address_edit.text()
+        recv_server_port_number = self.port_number_edit.text()
+
         if not model.rowCount():
             QMessageBox.warning(
                 self,
@@ -260,7 +246,7 @@ class HardwareInfoApp(QMainWindow):
             return
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-            client.connect((SERVER_HOST, SERVER_PORT))
+            client.connect((recv_server_ip, recv_server_port_number))
             devices_info_df = self.create_devices_info_dataframe()
             devices_info = json.dumps(devices_info_df.to_dict(orient="records"))
             client.sendall(devices_info.encode("utf-8"))
@@ -270,6 +256,9 @@ class HardwareInfoApp(QMainWindow):
             self.is_devices_capturing = True
 
         self.devices_info = get_devices_info()
+        if not self.is_running_as_server:
+            self.statusBar().showMessage(f"{len(self.devices_info)} Devices captured.")
+
         for item in self.devices_info:
             self.delegate.local_serial_numbers.append(item["Serial Number"])
         model.add_data(self.devices_info)
