@@ -46,7 +46,7 @@ class HardwareInfoApp(QMainWindow):
         self.server = None
         self.devices_info = list()
 
-        self.setWindowTitle("Assreg")
+        self.setWindowTitle("AssReg")
         self.setMinimumWidth(600)
 
         self.central_widget = QWidget()
@@ -223,9 +223,6 @@ class HardwareInfoApp(QMainWindow):
                     self.statusBar().showMessage("Error stopping server: {}".format(str(e)))
 
     def send_info_to_server(self):
-        recv_server_ip = "127.0.0.1"
-        recv_server_port_number = 500
-
         recv_server_ip = self.server_address_edit.text()
         recv_server_port_number = self.port_number_edit.text()
 

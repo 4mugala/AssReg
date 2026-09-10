@@ -1,16 +1,6 @@
-import pandas as pd
-
-from PySide6.QtCore import QModelIndex, QAbstractListModel, QSize, Qt
+from PySide6.QtCore import QSize
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
-
-import pandas as pd
-
-from PySide6.QtCore import (
-    QModelIndex,
-    QAbstractListModel,
-    Qt
-)
 
 
 import pandas as pd
