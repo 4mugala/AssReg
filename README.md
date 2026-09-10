@@ -17,7 +17,7 @@ No Prerequisites needed.
 
 ### Installation
 
-You can download from the 
+You can download the latest release from the [GitHub Releases](https://github.com/4mugala/AssReg/releases) page, or download build artifacts from our [GitHub Actions](https://github.com/4mugala/AssReg/actions) workflow runs.
 
 ### Usage
 
