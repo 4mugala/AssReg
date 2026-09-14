@@ -2,15 +2,14 @@ from PySide6.QtCore import QSize
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 
-
-import pandas as pd
-
 from PySide6.QtCore import (
     QModelIndex,
     QAbstractListModel,
     Qt,
     Signal
 )
+
+import pandas as pd
 
 
 class ListModel(QAbstractListModel):
@@ -320,7 +319,7 @@ class ItemDelegate(QStyledItemDelegate):
 
         name_font = QFont(option.font)
         name_font.setBold(True)
-        name_font.setPointSize(11)
+        # name_font.setPointSize(11)
 
         painter.setFont(name_font)
 
@@ -335,7 +334,7 @@ class ItemDelegate(QStyledItemDelegate):
         # -----------------------------------------------------
 
         normal_font = QFont(option.font)
-        normal_font.setPointSize(11)
+        # normal_font.setPointSize(11)
 
         painter.setFont(normal_font)
 
@@ -364,7 +363,7 @@ class ItemDelegate(QStyledItemDelegate):
             )
 
         node_font = QFont(option.font)
-        node_font.setPointSize(10)
+        # node_font.setPointSize(10)
 
         painter.setFont(node_font)
 

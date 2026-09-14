@@ -9,6 +9,26 @@ if SYSTEM == "windows":
 
 LINUX_REQUEST_GUI_AUTH = True
 
+import ctypes
+import glob
+import os
+from pyedid import parse_edid
+
+
+def is_root() -> bool:
+    """Returns True if the current process has root/admin privileges."""
+    try:
+        # Check for Unix-like systems (Linux, macOS)
+        if hasattr(os, 'geteuid'):
+            return os.geteuid() == 0
+
+        # Check for Windows
+        elif hasattr(ctypes, 'windll'):
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+
+    except Exception:
+        return False
+
 
 def get_devices_info_linux(hostonly):
     devices_info = list()
@@ -24,7 +44,7 @@ def get_devices_info_linux(hostonly):
     else:
         dmidecode_output = subprocess.check_output(["sudo", "dmidecode"], text=True).encode()
 
-    # Computer Serial Number
+    # Computer information
     computer_info = dict()
     for name, regex in MATCH_RE:
         match = re.search(regex, dmidecode_output)
@@ -33,23 +53,29 @@ def get_devices_info_linux(hostonly):
     computer_info["Category"] = "Computer"
     devices_info.append(computer_info)
 
-    # if hostonly:
-    #     return devices_info
-    # devices_info.curr_device = computer_info
+    if hostonly:
+        return devices_info
 
-    # Monitor in info
-    result = subprocess.check_output(["xrandr", "--query"], text=True)
-    # print("MONITORS:", result)
-    lines = result.split('\n')
-    for line in lines:
-        if " connected" in line:
-            name = line.split()[0]
-            devices_info.append({
-                "Device Name": name,
-                "Serial Number": "",
-                "UUID": "",
-                "Category": "Monitor"
-            })
+    # Monitors information
+    for edid_path in sorted(glob.glob("/sys/class/drm/*/edid")):
+        print(edid_path)
+        if "eDP" in edid_path:
+            continue
+
+        with open(edid_path, "rb") as f:
+            raw_data = f.read()
+
+        try:
+            edid = parse_edid(raw_data)
+        except Exception as e:
+            continue
+
+        devices_info.append({
+            "Device Name": edid.name,
+            "Serial Number": edid.serial,
+            "UUID": "",
+            "Category": "Monitor"
+        })
 
     return devices_info
 
@@ -117,4 +143,5 @@ def get_devices_info(hostonly=False):
     elif SYSTEM == "windows":
         return get_devices_info_windows(hostonly)
 
-# print(get_devices_info())
+
+print(get_devices_info())

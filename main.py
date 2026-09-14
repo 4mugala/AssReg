@@ -37,7 +37,7 @@ class Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
-class HardwareInfoApp(QMainWindow):
+class AssRegApp(QMainWindow):
     def __init__(self):
         super().__init__()
         # self.is_devices_capturing = False
@@ -56,11 +56,10 @@ class HardwareInfoApp(QMainWindow):
         self.layout.addWidget(QLabel("(<font color='red'>*</font>) Required"))
 
         # Hardware Info Group
-        hw_group = QGroupBox("Device Information")
+        hw_group = QGroupBox("Devices Information")
 
         # List View
         self.list_view = QListView()
-        # self.list_view.setModel(self.model)
         self.list_view.setModel(model)
 
         # Delegate
@@ -124,7 +123,7 @@ class HardwareInfoApp(QMainWindow):
         self.file_label = QLabel("No file selected")
         file_form__layout.addRow("Output File:", self.file_label)
 
-        self.select_file_button = QPushButton("Select CSV/Excel File")
+        self.select_file_button = QPushButton("Select File")
         self.select_file_button.adjustSize()
         self.select_file_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.select_file_button.clicked.connect(self.select_file)
@@ -342,7 +341,7 @@ class HardwareInfoApp(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = HardwareInfoApp()
+    window = AssRegApp()
     window.show()
 
 
