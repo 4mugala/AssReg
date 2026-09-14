@@ -30,23 +30,26 @@ def is_root() -> bool:
         return False
 
 
+DMIDECODE_RE = [
+    ("device_name", r"\s*Product\sName:(.+)"),
+    ("serial_number", r"\s*Serial\sNumber:(.+)"),
+    ("uuid", r"\s*UUID:(.+)"),
+]
+
+
 def get_devices_info_linux(hostonly):
     devices_info = list()
-    MATCH_RE = [
-        ("device_name", r"\s*Product\sName:(.+)"),
-        ("serial_number", r"\s*Serial\sNumber:(.+)"),
-        ("uuid", r"\s*UUID:(.+)"),
-    ]
+
     if LINUX_REQUEST_GUI_AUTH:
         dmidecode_output = subprocess.check_output([
             "pkexec",
-            "dmidecode", "system-serial-number"], text=True)  # .encode()
+            "dmidecode", "system-serial-number"], text=True)
     else:
         dmidecode_output = subprocess.check_output(["sudo", "dmidecode"], text=True).encode()
 
     # Computer information
     computer_info = dict()
-    for name, regex in MATCH_RE:
+    for name, regex in DMIDECODE_RE:
         match = re.search(regex, dmidecode_output)
         name = name.upper() if name == "uuid" else name.replace("_", " ").title()
         computer_info[name] = match.group(1).strip()
@@ -143,5 +146,4 @@ def get_devices_info(hostonly=False):
     elif SYSTEM == "windows":
         return get_devices_info_windows(hostonly)
 
-
-print(get_devices_info())
+# print(get_devices_info())
