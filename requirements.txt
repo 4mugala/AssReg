@@ -2,3 +2,4 @@ pyside6
 openpyxl
 wmi
 pandas
+pyedid
