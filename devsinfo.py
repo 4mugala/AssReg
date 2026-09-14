@@ -1,18 +1,16 @@
+import os
 import platform
 import re
 import subprocess
+import ctypes
+import glob
+from pyedid import parse_edid
 
 SYSTEM = platform.system().lower()
-
 if SYSTEM == "windows":
     import wmi
 
 LINUX_REQUEST_GUI_AUTH = True
-
-import ctypes
-import glob
-import os
-from pyedid import parse_edid
 
 
 def is_root() -> bool:
