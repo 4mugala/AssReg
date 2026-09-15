@@ -29,11 +29,11 @@ def is_root() -> bool:
 
 
 DMIDECODE_RE = [
-    ("device_name", r"\s*Product\sName:(.+)"),
-    ("serial_number", r"\s*Serial\sNumber:(.+)"),
-    ("uuid", r"\s*UUID:(.+)"),
+    ("device_name", r"\s*Product\sName:(?P<device_name>.+)"),
+    ("serial_number", r"\s*Serial\sNumber:(?P<serial_number>.+)"),
+    ("uuid", r"\s*UUID:(?P<uuid>.+)"),
+    ("category", r"Chassis Information\n(?:.*\n)*?\s*Type:\s*(?P<category>.+)"),
 ]
-
 
 def get_devices_info_linux(hostonly):
     devices_info = list()
@@ -41,17 +41,16 @@ def get_devices_info_linux(hostonly):
     if LINUX_REQUEST_GUI_AUTH:
         dmidecode_output = subprocess.check_output([
             "pkexec",
-            "dmidecode", "system-serial-number"], text=True)
+            "dmidecode"], text=True)
     else:
         dmidecode_output = subprocess.check_output(["sudo", "dmidecode"], text=True).encode()
 
     # Computer information
     computer_info = dict()
-    for name, regex in DMIDECODE_RE:
+    for group_name, regex in DMIDECODE_RE:
         match = re.search(regex, dmidecode_output)
-        name = name.upper() if name == "uuid" else name.replace("_", " ").title()
-        computer_info[name] = match.group(1).strip()
-    computer_info["Category"] = "Computer"
+        device_property = group_name.upper() if group_name == "uuid" else group_name.replace("_", " ").title()
+        computer_info[device_property] = match.group(group_name).strip()
     devices_info.append(computer_info)
 
     if hostonly:
@@ -59,7 +58,6 @@ def get_devices_info_linux(hostonly):
 
     # Monitors information
     for edid_path in sorted(glob.glob("/sys/class/drm/*/edid")):
-        print(edid_path)
         if "eDP" in edid_path:
             continue
 
@@ -70,13 +68,15 @@ def get_devices_info_linux(hostonly):
             edid = parse_edid(raw_data)
         except Exception as e:
             continue
-
-        devices_info.append({
+        monitor = {
             "Device Name": edid.name,
             "Serial Number": edid.serial,
             "UUID": "",
             "Category": "Monitor"
-        })
+        }
+
+        if monitor not in devices_info:
+            devices_info.append(monitor)
 
     return devices_info
 
