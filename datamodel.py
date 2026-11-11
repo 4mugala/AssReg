@@ -319,8 +319,6 @@ class ItemDelegate(QStyledItemDelegate):
 
         name_font = QFont(option.font)
         name_font.setBold(True)
-        # name_font.setPointSize(11)
-
         painter.setFont(name_font)
 
         painter.drawText(
@@ -334,20 +332,16 @@ class ItemDelegate(QStyledItemDelegate):
         # -----------------------------------------------------
 
         normal_font = QFont(option.font)
-        # normal_font.setPointSize(11)
-
         painter.setFont(normal_font)
 
-        serial_number = item.get(
-            "Serial Number",
-            ""
-        )
+        serial_number = item.get("Serial Number", "")
 
         painter.drawText(
             x,
             y + 36,
             f"Serial Number: {serial_number}"
         )
+
 
         # -----------------------------------------------------
         # Node
@@ -356,21 +350,15 @@ class ItemDelegate(QStyledItemDelegate):
         node = "Unknown"
 
         if self.local_serial_numbers:
-            node = (
-                "Local"
-                if serial_number in self.local_serial_numbers
-                else "Remote"
-            )
+            node = "Local" if serial_number in self.local_serial_numbers else "Remote"
 
         node_font = QFont(option.font)
-        # node_font.setPointSize(10)
-
         painter.setFont(node_font)
 
         painter.drawText(
             x,
             y + 57,
-            f"Node: {node}"
+            f"{item.get("Category", "Unknown")} from {node}"
         )
 
         painter.restore()
