@@ -35,6 +35,7 @@ DMIDECODE_RE = [
     ("category", r"Chassis Information\n(?:.*\n)*?\s*Type:\s*(?P<category>.+)"),
 ]
 
+
 def get_devices_info_linux(hostonly):
     devices_info = list()
 
@@ -144,4 +145,5 @@ def get_devices_info(hostonly=False):
     elif SYSTEM == "windows":
         return get_devices_info_windows(hostonly)
 
-# print(get_devices_info())
+print(get_devices_info())
+
