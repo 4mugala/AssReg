@@ -85,6 +85,14 @@ def get_devices_info_linux(hostonly):
 def get_devices_info_windows(hostonly):
     devices_info = list()
     computer_info = dict()
+
+    def decode_wmi_array(char_array):
+        """Converts a WMI uint16 character array into a clean Python string."""
+        if not char_array:
+            raise ValueError
+        # Convert each integer code to a character, filtering out null terminators (0)
+        return "".join(chr(char) for char in char_array if char != 0).strip()
+
     try:
         result = subprocess.check_output(
             ["powershell", "-Command", "(Get-CimInstance Win32_ComputerSystem).Model",
@@ -106,35 +114,23 @@ def get_devices_info_windows(hostonly):
     if hostonly:
         return devices_info
 
-    try:
-        # Monitor in info
-        c = wmi.WMI()
-        for monitor in c.Win32_DesktopMonitor():
-            if monitor.Name:  # and monitor.SerialNumber:
-                devices_info.append({
-                    "Device Name": monitor.Name,
-                    "Serial Number": "",
-                    "UUID": "",
-                    "Category": "Monitor"
-                })
-    except Exception as e:
-        # sysinfo["monitors"] = [{"name": "Unknown"}]
-        pass
+    # Force connection to the root\wmi namespace instead of default cimv2
+    c = wmi.WMI(namespace="root\\wmi")
 
-    # try:
-    #     # Computer Serial Number
-    #     c = wmi.WMI()
-    #     for bios in c.Win32_BIOS():
-    #         computer_info["serial_number"] = bios.SerialNumber.strip()
-    # except:
-    #     result = subprocess.check_output(
-    #         ["powershell", "-Command", "(Get-CimInstance -ClassName Win32_BIOS).SerialNumber"],
-    #         text=True
-    #     )
-    #     lines = result.strip().split('\n')
-    #     if len(lines) > 1:
-    #         sysinfo["serial_number"] = lines[1].strip()
-    #
+    # Query the WmiMonitorID class
+    for monitor in c.WmiMonitorID():
+        try:
+            monitor_info = {
+                # InstanceName acts as the OS-level unique ID for the monitor instance
+                "Device Name": decode_wmi_array(monitor.UserFriendlyName),
+                "Serial Number": decode_wmi_array(monitor.SerialNumberID),
+                "UUID": monitor.InstanceName,
+                "Category": "Monitor"
+            }
+            devices_info.append(monitor_info)
+        except:
+            pass
+
     return devices_info
 
 
@@ -145,5 +141,4 @@ def get_devices_info(hostonly=False):
     elif SYSTEM == "windows":
         return get_devices_info_windows(hostonly)
 
-print(get_devices_info())
-
+# print(get_devices_info())
