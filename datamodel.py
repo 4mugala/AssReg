@@ -147,6 +147,9 @@ class ListModel(QAbstractListModel):
         # Device identity columns
         # -----------------------------------------------------
 
+        location_columns = [
+            column for column in all_columns if column in self.LOCATION_COLUMNS
+        ]
         device_columns = [
             column
             for column in all_columns
@@ -212,15 +215,17 @@ class ListModel(QAbstractListModel):
 
             same = True
 
-            for column in all_columns:
+            for column in location_columns:
 
                 old_value = existing_row[column]
                 new_value = new_row[column]
 
-                if pd.isna(old_value) and pd.isna(new_value):
+                old_missing = pd.isna(old_value)
+                new_missing = pd.isna(new_value)
+                if old_missing and new_missing:
                     continue
 
-                if old_value != new_value:
+                if old_missing or new_missing or old_value != new_value:
                     same = False
                     break
 
@@ -239,10 +244,10 @@ class ListModel(QAbstractListModel):
                 existing_index
             )
 
-            self.df.loc[
-                existing_index,
-                all_columns
-            ] = new_row[all_columns].values
+            # Location fields can contain text, numbers, or missing values.
+            for column in location_columns:
+                self.df[column] = self.df[column].astype(object)
+                self.df.at[existing_index, column] = new_row[column]
 
             index = self.index(row_position)
 
